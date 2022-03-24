@@ -1,460 +1,405 @@
-'use strict';
+/**
+ * @author zhixin wen <wenzhixin2010@gmail.com>
+ */
 
-(function ($) {
-    'use strict';
-    // Reasonable defaults
+const Utils = $.fn.bootstrapTable.utils
 
-    var PIXEL_STEP = 10;
-    var LINE_HEIGHT = 40;
-    var PAGE_HEIGHT = 800;
+// Reasonable defaults
+const PIXEL_STEP = 10
+const LINE_HEIGHT = 40
+const PAGE_HEIGHT = 800
 
-    function normalizeWheel(event) {
-        var sX = 0; // spinX
-        var sY = 0; // spinY
-        var pX = 0; // pixelX
-        var pY = 0; // pixelY
+function normalizeWheel (event) {
+  let sX = 0 // spinX
+  let sY = 0 // spinY
+  let pX = 0 // pixelX
+  let pY = 0 // pixelY
 
-        // Legacy
-        if ('detail' in event) {
-            sY = event.detail;
-        }
-        if ('wheelDelta' in event) {
-            sY = -event.wheelDelta / 120;
-        }
-        if ('wheelDeltaY' in event) {
-            sY = -event.wheelDeltaY / 120;
-        }
-        if ('wheelDeltaX' in event) {
-            sX = -event.wheelDeltaX / 120;
-        }
+  // Legacy
+  if ('detail' in event) { sY = event.detail }
+  if ('wheelDelta' in event) { sY = -event.wheelDelta / 120 }
+  if ('wheelDeltaY' in event) { sY = -event.wheelDeltaY / 120 }
+  if ('wheelDeltaX' in event) { sX = -event.wheelDeltaX / 120 }
 
-        // side scrolling on FF with DOMMouseScroll
-        if ('axis' in event && event.axis === event.HORIZONTAL_AXIS) {
-            sX = sY;
-            sY = 0;
-        }
+  // side scrolling on FF with DOMMouseScroll
+  if ('axis' in event && event.axis === event.HORIZONTAL_AXIS) {
+    sX = sY
+    sY = 0
+  }
 
-        pX = sX * PIXEL_STEP;
-        pY = sY * PIXEL_STEP;
+  pX = sX * PIXEL_STEP
+  pY = sY * PIXEL_STEP
 
-        if ('deltaY' in event) {
-            pY = event.deltaY;
-        }
-        if ('deltaX' in event) {
-            pX = event.deltaX;
-        }
+  if ('deltaY' in event) { pY = event.deltaY }
+  if ('deltaX' in event) { pX = event.deltaX }
 
-        if ((pX || pY) && event.deltaMode) {
-            if (event.deltaMode === 1) {
-                // delta in LINE units
-                pX *= LINE_HEIGHT;
-                pY *= LINE_HEIGHT;
-            } else {
-                // delta in PAGE units
-                pX *= PAGE_HEIGHT;
-                pY *= PAGE_HEIGHT;
-            }
-        }
+  if ((pX || pY) && event.deltaMode) {
+    if (event.deltaMode === 1) { // delta in LINE units
+      pX *= LINE_HEIGHT
+      pY *= LINE_HEIGHT
+    } else { // delta in PAGE units
+      pX *= PAGE_HEIGHT
+      pY *= PAGE_HEIGHT
+    }
+  }
 
-        // Fall-back if spin cannot be determined
-        if (pX && !sX) {
-            sX = pX < 1 ? -1 : 1;
-        }
-        if (pY && !sY) {
-            sY = pY < 1 ? -1 : 1;
-        }
+  // Fall-back if spin cannot be determined
+  if (pX && !sX) { sX = (pX < 1) ? -1 : 1 }
+  if (pY && !sY) { sY = (pY < 1) ? -1 : 1 }
 
-        return {
-            spinX: sX,
-            spinY: sY,
-            pixelX: pX,
-            pixelY: pY
-        };
+  return {
+    spinX: sX,
+    spinY: sY,
+    pixelX: pX,
+    pixelY: pY
+  }
+}
+
+$.extend($.fn.bootstrapTable.defaults, {
+  fixedColumns: false,
+  fixedNumber: 0,
+  fixedRightNumber: 0
+})
+
+$.BootstrapTable = class extends $.BootstrapTable {
+
+  fixedColumnsSupported () {
+    return this.options.fixedColumns &&
+      !this.options.detailView &&
+      !this.options.cardView
+  }
+
+  initContainer () {
+    super.initContainer()
+
+    if (!this.fixedColumnsSupported()) {
+      return
     }
 
-    var cachedWidth = null;
-    var getScrollBarWidth = function getScrollBarWidth() {
-        if (cachedWidth === null) {
-            var inner = $('<p/>').addClass('fixed-table-scroll-inner'),
-                outer = $('<div/>').addClass('fixed-table-scroll-outer'),
-                w1 = void 0,
-                w2 = void 0;
-            outer.append(inner);
-            $('body').append(outer);
-            w1 = inner[0].offsetWidth;
-            outer.css('overflow', 'scroll');
-            w2 = inner[0].offsetWidth;
+    if (this.options.fixedNumber) {
+      this.$tableContainer.append('<div class="fixed-columns"></div>')
+      this.$fixedColumns = this.$tableContainer.find('.fixed-columns')
+    }
 
-            if (w1 === w2) {
-                w2 = outer[0].clientWidth;
-            }
+    if (this.options.fixedRightNumber) {
+      this.$tableContainer.append('<div class="fixed-columns-right"></div>')
+      this.$fixedColumnsRight = this.$tableContainer.find('.fixed-columns-right')
+    }
+  }
 
-            outer.remove();
-            cachedWidth = w1 - w2;
-        }
-        return cachedWidth;
-    };
-    //获取原本表格体的滑块宽度
-    var getTableBodyScrollBarWidth = function getTableBodyScrollBarWidth(tableBody) {
-        return tableBody[0].scrollHeight > tableBody[0].clientHeight ? 15 : 0;
-    };
-    $.extend($.fn.bootstrapTable.defaults, {
-        fixedColumns: false,
-        fixedNumber: 0,
-        fixedRightNumber: 0
-    });
-    var BootstrapTable = $.fn.bootstrapTable.Constructor,
-        _initBody = BootstrapTable.prototype.initBody,
-        _initContainer = BootstrapTable.prototype.initContainer,
-        _trigger = BootstrapTable.prototype.trigger,
-        _hideLoading = BootstrapTable.prototype.hideLoading,
-        _updateSelected = BootstrapTable.prototype.updateSelected;
+  initBody (...args) {
+    super.initBody(...args)
 
-    BootstrapTable.prototype.fixedColumnsSupported = function () {
-        var that = this;
-        return that.options.fixedColumns && !that.options.detailView && !that.options.cardView;
-    };
-    BootstrapTable.prototype.initFixedContainer = function () {
-        if (!this.fixedColumnsSupported()) {
-            return;
-        }
+    if (this.$fixedColumns && this.$fixedColumns.length) {
+      this.$fixedColumns.toggle(this.fixedColumnsSupported())
+    }
+    if (this.$fixedColumnsRight && this.$fixedColumnsRight.length) {
+      this.$fixedColumnsRight.toggle(this.fixedColumnsSupported())
+    }
 
-        if (this.options.fixedNumber) {
-            this.$tableContainer.find('.fixed-columns').size() == 0 && this.$tableContainer.append('<div class="fixed-columns"></div>');
-            this.$fixedColumns = this.$tableContainer.find('.fixed-columns');
-        }
+    if (!this.fixedColumnsSupported()) {
+      return
+    }
 
-        if (this.options.fixedRightNumber) {
-            this.$tableContainer.find('.fixed-columns-right').size() == 0 && this.$tableContainer.append('<div class="fixed-columns-right"></div>');
-            this.$fixedColumnsRight = this.$tableContainer.find('.fixed-columns-right');
-        }
-    };
+    if (this.options.showHeader && this.options.height) {
+      return
+    }
 
-    BootstrapTable.prototype.initContainer = function () {
-        _initContainer.apply(this, Array.prototype.slice.apply(arguments));
-        this.initFixedContainer();
-    };
+    this.initFixedColumnsBody()
+    this.initFixedColumnsEvents()
+  }
 
-    BootstrapTable.prototype.initBody = function () {
-        _initBody.apply(this, Array.prototype.slice.apply(arguments));
-        if (!this.fixedColumnsSupported()) {
-            return;
-        }
+  trigger (...args) {
+    super.trigger(...args)
 
-        if (this.options.showHeader && this.options.height) {
-            return;
-        }
+    if (!this.fixedColumnsSupported()) {
+      return
+    }
 
-        this.initFixedColumnsBody();
-        this.initFixedColumnsEvents();
-    };
+    if (args[0] === 'post-header') {
+      this.initFixedColumnsHeader()
+    } else if (args[0] === 'scroll-body') {
+      if (this.needFixedColumns && this.options.fixedNumber) {
+        this.$fixedBody.scrollTop(this.$tableBody.scrollTop())
+      }
 
-    BootstrapTable.prototype.trigger = function () {
-        var that = this;
+      if (this.needFixedColumns && this.options.fixedRightNumber) {
+        this.$fixedBodyRight.scrollTop(this.$tableBody.scrollTop())
+      }
+    }
+  }
 
-        _trigger.apply(this, Array.prototype.slice.apply(arguments));
-        if (arguments[0] === 'pre-body') {
-            //如果上来就是cardView 设置表格高度为auto
-            if (this.options.cardView) {
-                this.$tableBody.css("height", "auto");
-            }
-        }
-        //监听cardView 显示/隐藏fixed部分
-        if (arguments[0] === 'toggle') {
-            if (arguments[1]) {
-                this.$tableBody.css("height", "auto");
-                this.$fixedColumns && this.$fixedColumns.hide();
-                this.$fixedColumnsRight && this.$fixedColumnsRight.hide();
-            } else {
-                this.$tableBody.css("height", "100%");
-                this.$fixedColumns && this.$fixedColumns.show();
-                this.$fixedColumnsRight && this.$fixedColumnsRight.show();
-                this.$fixedHeaderRight && this.$fixedHeaderRight.scrollLeft(this.$tableBody.find('table').width());
-                this.$fixedBodyRight && this.$fixedBodyRight.scrollLeft(this.$tableBody.find('table').width());
-            }
-        }
-        if (!that.fixedColumnsSupported()) {
-            return;
-        }
-        if (arguments[0] === 'post-header') {
-            this.initFixedColumnsHeader();
-        } else if (arguments[0] === 'scroll-body') {
-            if (this.needFixedColumns && this.options.fixedNumber) {
-                this.$fixedBody && this.$fixedBody.scrollTop(this.$tableBody.scrollTop());
-            }
+  updateSelected () {
+    super.updateSelected()
 
-            if (this.needFixedColumns && this.options.fixedRightNumber) {
-                this.$fixedBodyRight && this.$fixedBodyRight.scrollTop(this.$tableBody.scrollTop());
-            }
-        } else if (arguments[0] === 'load-success') {
-            this.hideLoading();
-        }
-    };
+    if (!this.fixedColumnsSupported()) {
+      return
+    }
 
-    BootstrapTable.prototype.updateSelected = function () {
-        var that = this;
+    this.$tableBody.find('tr').each((i, el) => {
+      const $el = $(el)
+      const index = $el.data('index')
+      const classes = $el.attr('class')
 
-        _updateSelected.apply(this, Array.prototype.slice.apply(arguments));
-        if (!this.fixedColumnsSupported()) {
-            return;
-        }
-        this.$tableBody.find('tr').each(function (i, el) {
-            var $el = $(el);
-            var index = $el.data('index');
-            var classes = $el.attr('class');
-            var inputSelector = '[name="' + that.options.selectItemName + '"]';
-            var $input = $el.find(inputSelector);
-            if (typeof index === 'undefined') {
-                return;
-            }
+      const inputSelector = `[name="${this.options.selectItemName}"]`
+      const $input = $el.find(inputSelector)
 
-            var updateFixedBody = function updateFixedBody($fixedHeader, $fixedBody) {
-                var $tr = $fixedBody.find('tr[data-index="' + index + '"]');
-                $tr.attr('class', classes);
+      if (typeof index === 'undefined') {
+        return
+      }
 
-                if ($input.length) {
-                    $tr.find(inputSelector).prop('checked', $input.prop('checked'));
-                }
-                if (that.$selectAll.length) {
-                    $fixedHeader.add($fixedBody).find('[name="btSelectAll"]').prop('checked', that.$selectAll.prop('checked'));
-                }
-            };
-            if (that.$fixedBody && that.options.fixedNumber) {
-                updateFixedBody(that.$fixedHeader, that.$fixedBody);
-            }
+      const updateFixedBody = ($fixedHeader, $fixedBody) => {
+        const $tr = $fixedBody.find(`tr[data-index="${index}"]`)
 
-            if (that.$fixedBodyRight && that.options.fixedRightNumber) {
-                updateFixedBody(that.$fixedHeaderRight, that.$fixedBodyRight);
-            }
-        });
-    };
+        $tr.attr('class', classes)
 
-    BootstrapTable.prototype.hideLoading = function () {
-        _hideLoading.apply(this, Array.prototype.slice.apply(arguments));
-        if (this.needFixedColumns && this.options.fixedNumber) {
-            this.$fixedColumns.find('.fixed-table-loading').hide();
+        if ($input.length) {
+          $tr.find(inputSelector).prop('checked', $input.prop('checked'))
         }
 
-        if (this.needFixedColumns && this.options.fixedRightNumber) {
-            this.$fixedColumnsRight.find('.fixed-table-loading').hide();
+        if (this.$selectAll.length) {
+          $fixedHeader.add($fixedBody)
+            .find('[name="btSelectAll"]')
+            .prop('checked', this.$selectAll.prop('checked'))
         }
-    };
+      }
 
-    BootstrapTable.prototype.initFixedColumnsHeader = function () {
-        var that = this;
+      if (this.$fixedBody && this.options.fixedNumber) {
+        updateFixedBody(this.$fixedHeader, this.$fixedBody)
+      }
 
-        if (this.options.height) {
-            this.needFixedColumns = this.$tableHeader.outerWidth(true) < this.$tableHeader.find('table').outerWidth(true);
-        } else {
-            this.needFixedColumns = this.$tableBody.outerWidth(true) < this.$tableBody.find('table').outerWidth(true);
+      if (this.$fixedBodyRight && this.options.fixedRightNumber) {
+        updateFixedBody(this.$fixedHeaderRight, this.$fixedBodyRight)
+      }
+    })
+  }
+
+  hideLoading () {
+    super.hideLoading()
+
+    if (this.needFixedColumns && this.options.fixedNumber) {
+      this.$fixedColumns.find('.fixed-table-loading').hide()
+    }
+
+    if (this.needFixedColumns && this.options.fixedRightNumber) {
+      this.$fixedColumnsRight.find('.fixed-table-loading').hide()
+    }
+  }
+
+  initFixedColumnsHeader () {
+    if (this.options.height) {
+      this.needFixedColumns = this.$tableHeader.outerWidth(true) < this.$tableHeader.find('table').outerWidth(true)
+    } else {
+      this.needFixedColumns = this.$tableBody.outerWidth(true) < this.$tableBody.find('table').outerWidth(true)
+    }
+
+    const initFixedHeader = ($fixedColumns, isRight) => {
+      $fixedColumns.find('.fixed-table-header').remove()
+      $fixedColumns.append(this.$tableHeader.clone(true))
+
+      $fixedColumns.css({
+        width: this.getFixedColumnsWidth(isRight)
+      })
+      return $fixedColumns.find('.fixed-table-header')
+    }
+
+    if (this.needFixedColumns && this.options.fixedNumber) {
+      this.$fixedHeader = initFixedHeader(this.$fixedColumns)
+      this.$fixedHeader.css('margin-right', '')
+    } else if (this.$fixedColumns) {
+      this.$fixedColumns.html('').css('width', '')
+    }
+
+    if (this.needFixedColumns && this.options.fixedRightNumber) {
+      this.$fixedHeaderRight = initFixedHeader(this.$fixedColumnsRight, true)
+      this.$fixedHeaderRight.scrollLeft(this.$fixedHeaderRight.find('table').width())
+    } else if (this.$fixedColumnsRight) {
+      this.$fixedColumnsRight.html('').css('width', '')
+    }
+
+    this.initFixedColumnsBody()
+    this.initFixedColumnsEvents()
+  }
+
+  initFixedColumnsBody () {
+    const initFixedBody = ($fixedColumns, $fixedHeader) => {
+      $fixedColumns.find('.fixed-table-body').remove()
+      $fixedColumns.append(this.$tableBody.clone(true))
+      $fixedColumns.find('.fixed-table-body table').removeAttr('id')
+
+      const $fixedBody = $fixedColumns.find('.fixed-table-body')
+
+      const tableBody = this.$tableBody.get(0)
+      const scrollHeight = tableBody.scrollWidth > tableBody.clientWidth ?
+        Utils.getScrollBarWidth() : 0
+      const height = this.$tableContainer.outerHeight(true) - scrollHeight - 1
+
+      $fixedColumns.css({
+        height
+      })
+
+      $fixedBody.css({
+        height: height - $fixedHeader.height()
+      })
+
+      return $fixedBody
+    }
+
+    if (this.needFixedColumns && this.options.fixedNumber) {
+      this.$fixedBody = initFixedBody(this.$fixedColumns, this.$fixedHeader)
+    }
+
+    if (this.needFixedColumns && this.options.fixedRightNumber) {
+      this.$fixedBodyRight = initFixedBody(this.$fixedColumnsRight, this.$fixedHeaderRight)
+      this.$fixedBodyRight.scrollLeft(this.$fixedBodyRight.find('table').width())
+      this.$fixedBodyRight.css('overflow-y', this.options.height ? 'auto' : 'hidden')
+    }
+  }
+
+  getFixedColumnsWidth (isRight) {
+    let visibleFields = this.getVisibleFields()
+    let width = 0
+    let fixedNumber = this.options.fixedNumber
+    let marginRight = 0
+
+    if (isRight) {
+      visibleFields = visibleFields.reverse()
+      fixedNumber = this.options.fixedRightNumber
+      marginRight = parseInt(this.$tableHeader.css('margin-right'), 10)
+    }
+
+    for (let i = 0; i < fixedNumber; i++) {
+      width += this.$header.find(`th[data-field="${visibleFields[i]}"]`).outerWidth(true)
+    }
+
+    return width + marginRight + 1
+  }
+
+  initFixedColumnsEvents () {
+    const toggleHover = (e, toggle) => {
+      const tr = `tr[data-index="${$(e.currentTarget).data('index')}"]`
+      let $trs = this.$tableBody.find(tr)
+
+      if (this.$fixedBody) {
+        $trs = $trs.add(this.$fixedBody.find(tr))
+      }
+      if (this.$fixedBodyRight) {
+        $trs = $trs.add(this.$fixedBodyRight.find(tr))
+      }
+
+      $trs.css('background-color', toggle ? $(e.currentTarget).css('background-color') : '')
+    }
+
+    this.$tableBody.find('tr').hover(e => {
+      toggleHover(e, true)
+    }, e => {
+      toggleHover(e, false)
+    })
+
+    const isFirefox = typeof navigator !== 'undefined' &&
+      navigator.userAgent.toLowerCase().indexOf('firefox') > -1
+    const mousewheel = isFirefox ? 'DOMMouseScroll' : 'mousewheel'
+    const updateScroll = (e, fixedBody) => {
+      const normalized = normalizeWheel(e)
+      const deltaY = Math.ceil(normalized.pixelY)
+      const top = this.$tableBody.scrollTop() + deltaY
+
+      if (
+        deltaY < 0 && top > 0 ||
+        deltaY > 0 && top < fixedBody.scrollHeight - fixedBody.clientHeight
+      ) {
+        e.preventDefault()
+      }
+
+      this.$tableBody.scrollTop(top)
+      if (this.$fixedBody) {
+        this.$fixedBody.scrollTop(top)
+      }
+      if (this.$fixedBodyRight) {
+        this.$fixedBodyRight.scrollTop(top)
+      }
+    }
+
+    if (this.needFixedColumns && this.options.fixedNumber) {
+      this.$fixedBody.find('tr').hover(e => {
+        toggleHover(e, true)
+      }, e => {
+        toggleHover(e, false)
+      })
+
+      this.$fixedBody[0].addEventListener(mousewheel, e => {
+        updateScroll(e, this.$fixedBody[0])
+      })
+    }
+
+    if (this.needFixedColumns && this.options.fixedRightNumber) {
+      this.$fixedBodyRight.find('tr').hover(e => {
+        toggleHover(e, true)
+      }, e => {
+        toggleHover(e, false)
+      })
+
+      this.$fixedBodyRight.off('scroll').on('scroll', () => {
+        const top = this.$fixedBodyRight.scrollTop()
+
+        this.$tableBody.scrollTop(top)
+        if (this.$fixedBody) {
+          this.$fixedBody.scrollTop(top)
+        }
+      })
+    }
+
+    if (this.options.filterControl) {
+      $(this.$fixedColumns).off('keyup change').on('keyup change', e => {
+        const $target = $(e.target)
+        const value = $target.val()
+        const field = $target.parents('th').data('field')
+        const $coreTh = this.$header.find(`th[data-field="${field}"]`)
+
+        if ($target.is('input')) {
+          $coreTh.find('input').val(value)
+        } else if ($target.is('select')) {
+          const $select = $coreTh.find('select')
+
+          $select.find('option[selected]').removeAttr('selected')
+          $select.find(`option[value="${value}"]`).attr('selected', true)
         }
 
-        var initFixedHeader = function initFixedHeader($fixedColumns, isRight) {
-            $fixedColumns.find('.fixed-table-header').remove();
-            $fixedColumns.append(that.$tableHeader.clone(true));
-            $fixedColumns.find('.fixed-table-header').css('margin-right', "");
-            $fixedColumns.css({
-                width: that.getFixedColumnsWidth(isRight)
-            });
-            return $fixedColumns.find('.fixed-table-header');
-        };
+        this.triggerSearch()
+      })
+    }
+  }
 
-        if (this.needFixedColumns && this.options.fixedNumber) {
-            this.$fixedHeader = initFixedHeader(this.$fixedColumns);
-            this.$fixedHeader.css('margin-right', '');
-        } else if (this.$fixedColumns) {
-            this.$fixedColumns.html('').css('width', '');
-        }
+  renderStickyHeader () {
+    if (!this.options.stickyHeader) {
+      return
+    }
 
-        if (this.needFixedColumns && this.options.fixedRightNumber) {
-            this.$fixedHeaderRight = initFixedHeader(this.$fixedColumnsRight, true);
-            this.$fixedHeaderRight.scrollLeft(this.$fixedHeaderRight.find('table').width());
-        } else if (this.$fixedColumnsRight) {
-            this.$fixedColumnsRight.html('').css('width', '');
-        }
+    this.$stickyContainer = this.$container.find('.sticky-header-container')
+    super.renderStickyHeader()
 
-        this.initFixedColumnsBody();
-        this.initFixedColumnsEvents();
-    };
+    if (this.needFixedColumns && this.options.fixedNumber) {
+      this.$fixedColumns.css('z-index', 101)
+        .find('.sticky-header-container')
+        .css('right', '')
+        .width(this.$fixedColumns.outerWidth())
+    }
 
-    BootstrapTable.prototype.initFixedColumnsBody = function () {
-        var that = this;
+    if (this.needFixedColumns && this.options.fixedRightNumber) {
+      const $stickyHeaderContainerRight = this.$fixedColumnsRight.find('.sticky-header-container')
 
-        var initFixedBody = function initFixedBody($fixedColumns, $fixedHeader) {
-            $fixedColumns.find('.fixed-table-body').remove();
-            $fixedColumns.append(that.$tableBody.clone(true));
+      this.$fixedColumnsRight.css('z-index', 101)
+      $stickyHeaderContainerRight.css('left', '')
+        .scrollLeft($stickyHeaderContainerRight.find('.table').outerWidth())
+        .width(this.$fixedColumnsRight.outerWidth())
+    }
+  }
 
-            var $fixedBody = $fixedColumns.find('.fixed-table-body');
+  matchPositionX () {
+    if (!this.options.stickyHeader) {
+      return
+    }
 
-            var tableBody = that.$tableBody.get(0);
-            var scrollHeight = tableBody.scrollWidth > tableBody.clientWidth ? getScrollBarWidth() : 0;
-            var paginationHeight = $(".fixed-table-pagination").height();
-            if (typeof that.options.height !== 'undefined') paginationHeight = 0;
-            var height = that.$tableContainer.outerHeight(true) - scrollHeight - paginationHeight + 1;
-            $fixedColumns.css({
-                height: height,
-                "min-height": "calc(100% - " + (paginationHeight + scrollHeight) + "px)"
-            });
-            $fixedBody.css({
-                height: height - $fixedHeader.height(),
-                "min-height": "calc(100% - " + $fixedHeader.height() + "px)",
-                overflow: "hidden"
-            });
-
-            return $fixedBody;
-        };
-
-        if (this.needFixedColumns && this.options.fixedNumber) {
-            this.$fixedBody = initFixedBody(this.$fixedColumns, this.$fixedHeader);
-        }
-        if (this.needFixedColumns && this.options.fixedRightNumber) {
-            this.$fixedBodyRight = initFixedBody(this.$fixedColumnsRight, this.$fixedHeaderRight);
-            this.$fixedBodyRight.scrollLeft(this.$fixedBodyRight.find('table').width());
-            this.$fixedBodyRight.css('overflow-y', 'hidden');
-        }
-    };
-
-    BootstrapTable.prototype.getFixedColumnsWidth = function (isRight) {
-
-        var visibleFields = this.getVisibleFields();
-        var width = 0;
-        var fixedNumber = this.options.fixedNumber;
-        var marginRight = 0;
-
-        if (isRight) {
-            visibleFields = visibleFields.reverse();
-            fixedNumber = this.options.fixedRightNumber;
-            //右侧固定列距离
-            this.$fixedColumnsRight.css('right', getTableBodyScrollBarWidth(this.$tableBody));
-        }
-
-        for (var i = 0; i < fixedNumber; i++) {
-            width += this.$header.find('th[data-field="' + visibleFields[i] + '"]').outerWidth();
-        }
-
-        return width + 1;
-    };
-
-    BootstrapTable.prototype.initFixedColumnsEvents = function () {
-        var that = this;
-
-        var toggleHover = function toggleHover(e, toggle) {
-            var tr = 'tr[data-index="' + $(e.currentTarget).data('index') + '"]';
-            var $trs = that.$tableBody.find(tr);
-
-            if (that.$fixedBody) {
-                $trs = $trs.add(that.$fixedBody.find(tr));
-            }
-            if (that.$fixedBodyRight) {
-                $trs = $trs.add(that.$fixedBodyRight.find(tr));
-            }
-
-            $trs.css('background-color', toggle ? $(e.currentTarget).css('background-color') : '');
-        };
-        this.$tableBody.find('tr').hover(function (e) {
-            toggleHover(e, true);
-        }, function (e) {
-            toggleHover(e, false);
-        });
-        var isFirefox = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-        var mousewheel = isFirefox ? 'DOMMouseScroll' : 'mousewheel';
-        var updateScroll = function updateScroll(e, fixedBody) {
-            var normalized = normalizeWheel(e);
-            var deltaY = Math.ceil(normalized.pixelY);
-            var top = that.$tableBody.scrollTop() + deltaY;
-            if (deltaY < 0 && top > 0 || deltaY > 0 && top < fixedBody.scrollHeight - fixedBody.clientHeight) {
-                e.preventDefault();
-            }
-
-            that.$tableBody.scrollTop(top);
-            if (that.$fixedBody) {
-                that.$fixedBody.scrollTop(top);
-            }
-            if (that.$fixedBodyRight) {
-                that.$fixedBodyRight.scrollTop(top);
-            }
-        };
-        if (this.needFixedColumns && this.options.fixedNumber) {
-            this.$fixedBody.find('tr').hover(function (e) {
-                toggleHover(e, true);
-            }, function (e) {
-                toggleHover(e, false);
-            });
-            this.$fixedBody[0].addEventListener(mousewheel, function (e) {
-                //给鼠标滑轮绑定事件
-                updateScroll(e, that.$fixedBody[0]);
-            });
-            //给固定表格的checkbox绑定事件
-            this.$fixedBody.find('input[name="' + this.options.selectItemName + '"]').off("click").on('click', function (e) {
-                e.stopImmediatePropagation();
-                var index = $(e.target).data("index");
-                $(that.$selectItem[index]).trigger("click");
-            });
-            //绑定TD点击事件
-            this.$fixedBody.find('> table > tbody > tr[data-index] > td').off('click dblclick').on('click dblclick', function (e) {
-                var index = $(this).closest("tr[data-index]").data("index");
-                $(that.$selectItem[index]).closest("tr[data-index]").find(">td:eq(" + $(this).index() + ")").trigger("click");
-            });
-        }
-        //给原本表格绑定scroll事件
-        $('div.fixed-table-body').off('scroll'); //给所有的body解绑 scroll
-        this.$tableBody.off('scroll').on('scroll', function (e) {
-            that.$tableHeader.scrollLeft(0);
-            if (that.$tableBody.scrollLeft() > 0) {
-                that.$tableHeader.scrollLeft(that.$tableBody.scrollLeft());
-                if (that.options.showFooter && !that.options.cardView) {
-                    that.$tableFooter.scrollLeft(that.$tableBody.scrollLeft());
-                }
-            }
-            var top = that.$tableBody.scrollTop();
-            if (that.$fixedBody) {
-                that.$fixedBody.scrollTop(top);
-            }
-            if (that.$fixedBodyRight) {
-                that.$fixedBodyRight.scrollTop(top);
-            }
-        });
-
-        if (this.needFixedColumns && this.options.fixedRightNumber) {
-            this.$fixedBodyRight.find('tr').hover(function (e) {
-                toggleHover(e, true);
-            }, function (e) {
-                toggleHover(e, false);
-            });
-            this.$fixedBodyRight[0].addEventListener(mousewheel, function (e) {
-                //给鼠标滑轮绑定事件
-                updateScroll(e, that.$fixedBodyRight[0]);
-            });
-            //给固定表格的checkbox绑定事件
-            this.$fixedBodyRight.find('input[name="' + this.options.selectItemName + '"]').off("click").on('click', function (e) {
-                e.stopImmediatePropagation();
-                var index = $(e.target).data("index");
-                $(that.$selectItem[index]).trigger("click");
-            });
-            //绑定TD点击事件
-            this.$fixedBodyRight.find('> table > tbody > tr[data-index] > td').off('click dblclick').on('click dblclick', function (e) {
-                var index = $(this).closest("tr[data-index]").data("index");
-                $(that.$selectItem[index]).closest("tr[data-index]").find(">td:eq(" + $(this).index() + ")").trigger("click");
-            });
-        }
-
-        if (this.options.filterControl) {
-            $(this.$fixedColumns).off('keyup change').on('keyup change', function (e) {
-                var $target = $(e.target);
-                var value = $target.val();
-                var field = $target.parents('th').data('field');
-                var $coreTh = that.$header.find('th[data-field="' + field + '"]');
-
-                if ($target.is('input')) {
-                    $coreTh.find('input').val(value);
-                } else if ($target.is('select')) {
-                    var $select = $coreTh.find('select');
-                    $select.find('option[selected]').removeAttr('selected');
-                    $select.find('option[value="' + value + '"]').attr('selected', true);
-                }
-
-                that.triggerSearch();
-            });
-        }
-    };
-})(jQuery);
+    this.$stickyContainer.eq(0).scrollLeft(this.$tableBody.scrollLeft())
+  }
+}
